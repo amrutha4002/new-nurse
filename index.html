@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HMS Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+        }
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.5); display: flex;
+            align-items: center; justify-content: center; z-index: 50;
+        }
+        .modal-content {
+            background: white; padding: 2rem; border-radius: 0.75rem;
+            width: 90%; max-width: 500px;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+        }
+        .tab-btn.active {
+            border-color: #2563eb; color: #2563eb; background-color: #eff6ff;
+        }
+        .patient-card, .super-nurse-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+        .patient-card:hover, .super-nurse-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div id="app" class="min-h-screen">
+        
+        <div id="login-view" class="flex items-center justify-center min-h-screen bg-gray-100">
+            <div class="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
+                <div class="text-center">
+                    <i class="fas fa-hospital-user text-4xl text-blue-600"></i>
+                    <h2 class="mt-4 text-2xl font-bold text-gray-900">HMS Portal Login</h2>
+                    <p class="text-gray-600">Please sign in to continue</p>
+                </div>
+                <div id="login-feedback" class="text-center text-sm text-red-600"></div>
+                <form id="login-form" class="space-y-6">
+                    <div>
+                        <label for="username" class="text-sm font-medium text-gray-700">Username</label>
+                        <input id="username" name="username" type="text" required class="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., nurse or super">
+                    </div>
+                    <div>
+                        <label for="password" class="text-sm font-medium text-gray-700">Password</label>
+                        <input id="password" name="password" type="password" required class="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="password123">
+                    </div>
+                    <div>
+                        <button type="submit" class="w-full px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Sign In</button>
+                    </div>
+                    <div class="text-center pt-2">
+                        <a href="#" id="signup-link" class="text-sm text-gray-600 hover:text-blue-500 hover:underline">
+                            <i class="fas fa-user-plus mr-1"></i>
+                            Don't have an account? Sign Up
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="main-app-view" class="hidden">
+            <header class="bg-white shadow-md sticky top-0 z-40">
+                <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="flex items-center justify-between h-16">
+                        <div class="flex items-center">
+                            <i class="fas fa-hospital text-2xl text-blue-600"></i>
+                            <h1 id="header-title" class="ml-3 text-xl font-bold text-gray-800"></h1>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <span id="user-role-display" class="text-sm font-medium"></span>
+                             <div class="relative">
+                                <button id="user-menu-btn" class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                    <i class="fas fa-user text-gray-600"></i>
+                                ></button>
+                                <div id="user-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
+                                    <a href="#" id="logout-btn" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Logout</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <main id="main-content" class="p-4 sm:p-6 lg:p-8">
+            </main>
+        </div>
+    </div>
+
+    <button id="add-patient-btn" class="hidden fixed bottom-6 right-6 bg-blue-600 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-lg hover:bg-blue-700 transition duration-300 z-30"><i class="fas fa-plus text-xl"></i></button>
+
+    <div id="add-patient-modal" class="modal-overlay hidden"><div class="modal-content fade-in"><h3 class="text-xl font-semibold mb-4">Add Patient to Ward</h3><div id="modal-feedback" class="mb-4 text-sm"></div><input type="text" id="patient-id-input" class="w-full px-3 py-2 border rounded-md" placeholder="Enter Patient ID (e.g., PID-001)"><div class="flex justify-end space-x-3 mt-4"><button data-action="close-modal" class="bg-gray-200 py-2 px-4 rounded-lg">Cancel</button><button data-action="confirm-add-patient" class="bg-blue-600 text-white py-2 px-4 rounded-lg">Find & Add</button></div></div></div>
+    <div id="remarks-modal" class="modal-overlay hidden"><div class="modal-content fade-in"><h3 class="text-xl font-semibold mb-4">Special Remarks</h3><p id="remarks-task-info" class="text-sm text-gray-600 mb-3"></p><textarea id="remarks-textarea" class="w-full px-3 py-2 border rounded-md" rows="4" placeholder="Enter any observations..."></textarea><div class="flex justify-end space-x-3 mt-4"><button data-action="skip-remarks" class="bg-gray-200 py-2 px-4 rounded-lg">Skip</button><button data-action="save-remarks" class="bg-blue-600 text-white py-2 px-4 rounded-lg">Save Remarks</button></div></div></div>
+    <div id="view-remark-modal" class="modal-overlay hidden"><div class="modal-content fade-in"><h3 class="text-xl font-semibold mb-2">Completed Task Details</h3><div id="view-remark-content"></div><div class="flex justify-end mt-4"><button data-action="close-modal" class="bg-gray-200 py-2 px-4 rounded-lg">Close</button></div></div></div>
+    <div id="add-task-modal" class="modal-overlay hidden"><div class="modal-content fade-in"><h3 class="text-xl font-semibold mb-4">Add Custom Task</h3><div id="add-task-feedback" class="mb-4 text-sm"></div><div class="space-y-4"><label for="task-name-input" class="block text-sm font-medium">Task Name</label><input type="text" id="task-name-input" class="w-full px-3 py-2 border rounded-md" placeholder="e.g., Check blood sugar"><label for="task-time-input" class="block text-sm font-medium">Scheduled Time</label><input type="time" id="task-time-input" class="w-full px-3 py-2 border rounded-md"></div><div class="flex justify-end space-x-3 mt-6"><button data-action="close-modal" class="bg-gray-200 py-2 px-4 rounded-lg">Cancel</button><button data-action="confirm-add-task" class="bg-blue-600 text-white py-2 px-4 rounded-lg">Save Task</button></div></div></div>
+    
+    <div id="toast" class="fixed bottom-5 right-5 bg-green-500 text-white py-2 px-4 rounded-lg shadow-xl transition-transform duration-500 translate-x-full z-50"><p id="toast-message"></p></div>
+
+    <script type="module">
+        // --- MOCK DATA ---
+        const masterPatientDB = new Map([
+            ['PID-001', { name: 'John Doe', age: 45, room: '101A', diagnosis: 'Post-Op Recovery', allergies: ['Peanuts'], 
+                tasks: [ 
+                    { id: 1, text: 'Administer Painkiller (IV)', time: '08:00', completed: true, completedAt: '2025-07-26T08:05:00Z', remark: 'Patient reported immediate relief.' }, 
+                    { id: 2, text: 'Check Vitals', time: '20:00', completed: false, remark: '' }, // Set for 8:00 PM today (pending)
+                    { id: 3, text: 'Change Bandage', time: '14:00', completed: false, remark: '' }, // Example for uncompleted
+                    { id: 9, text: 'Prepare for Discharge', time: '23:00', completed: false, remark: '' } // Example for upcoming
+                ],
+                doctorsNotes: [{ date: '2025-07-26', note: 'Patient is stable. Continue monitoring. May be discharged tomorrow if progress holds.', doctor: 'Dr. House' }]
+            }],
+            ['PID-002', { name: 'Jane Smith', age: 62, room: '102B', diagnosis: 'Pneumonia', allergies: [], 
+                tasks: [ 
+                    { id: 4, text: 'Administer Antibiotics', time: '09:00', completed: true, completedAt: '2025-07-26T09:10:00Z', remark: 'Patient tolerated well.' }, 
+                    { id: 5, text: 'Respiratory Therapy', time: '20:30', completed: false, remark: '' }, // Set for 8:30 PM today (pending)
+                    { id: 10, text: 'Assist with Ambulation', time: '16:00', completed: false, remark: '' }, // Example for uncompleted
+                    { id: 11, text: 'Medication Round', time: '21:30', completed: false, remark: '' } // Example for upcoming
+                ],
+                doctorsNotes: [{ date: '2025-07-26', note: 'Lungs sound clearer today. Continue course of antibiotics.', doctor: 'Dr. Grey' }]
+            }],
+            ['PID-003', { name: 'Peter Jones', age: 78, room: '103A', diagnosis: 'Dehydration', allergies: ['Sulfa'], 
+                tasks: [ { id: 6, text: 'Start IV Fluids', time: '04:30', completed: false, remark: '' } ], // Likely uncompleted if not done
+                doctorsNotes: []
+            }],
+            ['PID-004', { name: 'Mary Williams', age: 50, room: '104C', diagnosis: 'Observation', allergies: [], 
+                tasks: [ { id: 7, text: 'Hourly Neuro Checks', time: '13:30', completed: true, completedAt: '2025-07-26T13:35:00Z', remark: 'Checks are stable.'}, { id: 8, text: 'Check Vitals', time: '22:00', completed: false, remark: ''} ],
+                doctorsNotes: [{ date: '2025-07-25', note: 'Admitted for observation after minor fall. No signs of concussion so far.', doctor: 'Dr. Reid' }]
+            }],
+        ]);
+
+        const users = {
+            'nurse': { id: 'nurse', password: 'password123', name: 'Angela Martin', role: 'Nurse', patients: ['PID-001', 'PID-002'] },
+            'nurse2': { id: 'nurse2', password: 'password123', name: 'Dwight Schrute', role: 'Nurse', patients: ['PID-003'] },
+            'nurse3': { id: 'nurse3', password: 'password123', name: 'Pam Beesly', role: 'Nurse', patients: ['PID-004'] },
+            'super': { id: 'super', password: 'password123', name: 'David Wallace', role: 'Superintendent' }
+        };
+        const UNCOMPLETED_THRESHOLD_HOURS = 2; // Tasks older than this from current time are 'uncompleted'
+        let activeCharts = {};
+
+        // --- STATE ---
+        let nursePatients = new Set();
+        let loggedInUser = null;
+        let currentView = 'login'; 
+
+        // --- DOM ELEMENTS ---
+        const loginView = document.getElementById('login-view');
+        const mainAppView = document.getElementById('main-app-view');
+        const mainContent = document.getElementById('main-content');
+        const headerTitle = document.getElementById('header-title');
+        const loginForm = document.getElementById('login-form');
+        const loginFeedback = document.getElementById('login-feedback');
+        const userRoleDisplay = document.getElementById('user-role-display');
+        const userMenuBtn = document.getElementById('user-menu-btn');
+        const userMenu = document.getElementById('user-menu');
+        const logoutBtn = document.getElementById('logout-btn');
+        
+        const addPatientBtn = document.getElementById('add-patient-btn');
+        const addPatientModal = document.getElementById('add-patient-modal');
+        const remarksModal = document.getElementById('remarks-modal');
+        const viewRemarkModal = document.getElementById('view-remark-modal');
+        const addTaskModal = document.getElementById('add-task-modal');
+
+        // --- TEMPLATES ---
+        const nurseDashboardTemplate = `
+            <div id="main-views" class="fade-in">
+                <div class="mb-6 border-b border-gray-200">
+                    <nav class="flex space-x-2 sm:space-x-4" aria-label="Tabs">
+                        <button data-action="switch-tab" data-tab="ward" class="tab-btn active font-medium text-gray-500 hover:text-gray-700 whitespace-nowrap py-3 px-1 border-b-2 text-sm">My Ward</button>
+                        <button data-action="switch-tab" data-tab="schedule" class="tab-btn font-medium text-gray-500 hover:text-gray-700 whitespace-nowrap py-3 px-1 border-b-2 border-transparent text-sm">Today's Schedules</button>
+                        <button data-action="switch-tab" data-tab="uncompleted" class="tab-btn font-medium text-gray-500 hover:text-gray-700 whitespace-nowrap py-3 px-1 border-b-2 border-transparent text-sm">Uncompleted</button>
+                        <button data-action="switch-tab" data-tab="completed" class="tab-btn font-medium text-gray-500 hover:text-gray-700 whitespace-nowrap py-3 px-1 border-b-2 border-transparent text-sm">Completed Log</button>
+                    </nav>
+                </div>
+                <div data-view="ward"><div id="patient-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div><div id="no-patients-message" class="hidden text-center py-16 px-6 bg-white rounded-lg shadow-md"><i class="fas fa-bed-pulse fa-4x text-gray-300 mb-4"></i><h3 class="text-xl font-semibold text-gray-700">No Patients Assigned</h3><p class="text-gray-500 mt-2">Click the "+" button to add a patient.</p></div></div>
+                <div data-view="schedule" class="hidden"><div class="space-y-8"><div><h2 class="text-xl font-semibold mb-3 flex items-center"><i class="fas fa-exclamation-triangle text-yellow-500 mr-2"></i>Pending Tasks</h2><ul id="pending-tasks-list" class="space-y-3"></ul><p id="no-pending-tasks" class="text-gray-500 mt-4 hidden">No pending tasks. Great job!</p></div><div><h2 class="text-xl font-semibold mb-3 flex items-center"><i class="far fa-clock text-blue-500 mr-2"></i>Upcoming Tasks</h2><ul id="upcoming-tasks-list" class="space-y-3"></ul><p id="no-upcoming-tasks" class="text-gray-500 mt-4 hidden">No upcoming tasks for your assigned patients.</p></div></div></div>
+                <div data-view="uncompleted" class="hidden"> <h2 class="text-xl font-semibold mb-3 flex items-center"><i class="fas fa-times-circle text-red-600 mr-2"></i>Uncompleted Tasks</h2><ul id="uncompleted-tasks-list" class="space-y-3"></ul><p id="no-uncompleted-tasks" class="text-gray-500 mt-4 hidden">No uncompleted tasks.</p></div>
+                <div data-view="completed" class="hidden"><h2 class="text-xl font-semibold mb-3 flex items-center"><i class="fas fa-check-double text-green-500 mr-2"></i>Completed Tasks</h2><ul id="completed-tasks-list" class="space-y-3"></ul><p id="no-completed-tasks" class="text-gray-500 mt-4 hidden">No tasks have been completed yet.</p></div>
+            </div>`;
+
+        // --- UTILS & HELPERS ---
+        function classifyTasks(patientSet) {
+            const now = new Date();
+            // Set the date for all task comparisons to July 27, 2025
+            const comparisonDate = new Date('2025-07-27T00:00:00'); 
+
+            const threshold = new Date(now.getTime() - UNCOMPLETED_THRESHOLD_HOURS * 60 * 60 * 1000);
+            const tasks = { completed: [], pending: [], upcoming: [], uncompleted: [] };
+
+            patientSet.forEach(pid => {
+                const patient = masterPatientDB.get(pid);
+                if (patient) {
+                    patient.tasks.forEach(task => {
+                        const taskData = { ...task, patientId: pid, patientName: patient.name, room: patient.room };
+                        if (task.completed) {
+                            tasks.completed.push(taskData);
+                        } else {
+                            const [hours, minutes] = task.time.split(':').map(Number);
+                            const taskDateTime = new Date(); 
+                            // Set task date to the fixed comparisonDate for consistent behavior
+                            taskDateTime.setFullYear(comparisonDate.getFullYear(), comparisonDate.getMonth(), comparisonDate.getDate());
+                            taskDateTime.setHours(hours, minutes, 0, 0);
+                            taskData.dateTime = taskDateTime;
+                            
+                            if (taskDateTime < threshold) {
+                                tasks.uncompleted.push(taskData);
+                            } else if (taskDateTime < now) {
+                                tasks.pending.push(taskData);
+                            } else {
+                                tasks.upcoming.push(taskData);
+                            }
+                        }
+                    });
+                }
+            });
+            return tasks;
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast'), toastMessage = document.getElementById('toast-message');
+            toastMessage.textContent = message;
+            toast.className = `fixed bottom-5 right-5 text-white py-2 px-4 rounded-lg shadow-xl transition-transform duration-500 translate-x-full z-50`;
+            const colors = { success: 'bg-green-500', info: 'bg-blue-500', error: 'bg-red-500' };
+            toast.classList.add(colors[type]);
+            setTimeout(() => { toast.classList.remove('translate-x-full'); }, 100);
+            setTimeout(() => { toast.classList.add('translate-x-full'); }, 3500);
+        }
+
+        function switchTab(tabName) {
+            const mainViews = document.getElementById('main-views');
+            if (!mainViews) return;
+            mainViews.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            mainViews.querySelector(`.tab-btn[data-tab="${tabName}"]`).classList.add('active');
+            mainViews.querySelectorAll('[data-view]').forEach(view => view.classList.add('hidden'));
+            mainViews.querySelector(`[data-view="${tabName}"]`).classList.remove('hidden');
+        }
+
+        // --- CORE LOGIC ---
+        function handleLogin(e) {
+            e.preventDefault();
+            const username = loginForm.username.value.toLowerCase();
+            const password = loginForm.password.value;
+            const user = Object.values(users).find(u => u.id === username);
+
+            if (user && user.password === password) {
+                loggedInUser = user;
+                loginView.classList.add('hidden');
+                mainAppView.classList.remove('hidden');
+                userRoleDisplay.textContent = `${user.role}: ${user.name}`;
+                loginFeedback.textContent = '';
+                if (user.role === 'Superintendent') {
+                    renderView('super');
+                } else {
+                    nursePatients = new Set(loggedInUser.patients || []);
+                    renderView('nurse');
+                }
+            } else {
+                loginFeedback.textContent = 'Invalid username or password.';
+            }
+        }
+
+        function handleLogout() {
+            loggedInUser = null;
+            nursePatients = new Set();
+            loginView.classList.remove('hidden');
+            mainAppView.classList.add('hidden');
+            loginForm.reset();
+            mainContent.innerHTML = '';
+            addPatientBtn.classList.add('hidden');
+            Object.values(activeCharts).forEach(chart => chart.destroy());
+            activeCharts = {};
+        }
+        
+        // --- NAVIGATION & VIEW RENDERING ---
+        function renderView(viewName, context = {}) {
+            currentView = viewName;
+            mainContent.innerHTML = ''; // Clear previous content
+            Object.values(activeCharts).forEach(chart => chart.destroy());
+            activeCharts = {};
+
+            switch (viewName) {
+                case 'nurse':
+                    headerTitle.textContent = 'Nurse Dashboard';
+                    addPatientBtn.classList.remove('hidden');
+                    mainContent.innerHTML = nurseDashboardTemplate;
+                    updateAllNurseViews();
+                    switchTab('ward');
+                    break;
+                case 'super':
+                    headerTitle.textContent = 'Superintendent Dashboard';
+                    addPatientBtn.classList.add('hidden');
+                    renderSuperintendentView();
+                    break;
+                case 'nurse-detail':
+                    headerTitle.textContent = `${context.nurse.name}'s Ward`;
+                    addPatientBtn.classList.add('hidden');
+                    renderSuperNurseDetailView(context.nurse);
+                    break;
+                case 'patient-detail':
+                    headerTitle.textContent = 'Patient Details';
+                    addPatientBtn.classList.add('hidden');
+                    renderPatientDetailView(context.patientId, context.options);
+                    break;
+            }
+        }
+
+        function updateAllNurseViews() {
+            if (currentView !== 'nurse') return;
+            const tasks = classifyTasks(nursePatients);
+            renderPatients();
+            renderTaskLists(tasks);
+        }
+
+        function renderSuperintendentView() {
+            let content = '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">';
+            Object.values(users).filter(u => u.role === 'Nurse').forEach(nurse => {
+                const tasks = classifyTasks(new Set(nurse.patients || []));
+                const canvas = document.getElementById(`chart-${nurse.id}`);
+                content += `
+                    <div class="super-nurse-card bg-white rounded-lg shadow-md p-5 fade-in" data-action="view-nurse-ward" data-nurse-id="${nurse.id}">
+                        <div class="flex items-center mb-4">
+                            <span class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mr-4"><i class="fas fa-user-nurse text-2xl text-blue-500"></i></span>
+                            <div><h3 class="text-lg font-bold">${nurse.name}</h3><p class="text-sm text-gray-500">Managing ${nurse.patients?.length || 0} Patient(s)</p></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 items-center">
+                            <div class="w-full h-full relative"><canvas id="chart-${nurse.id}"></canvas></div>
+                            <div class="text-sm space-y-1">
+                                <p><i class="fas fa-check-circle text-green-500"></i> Completed: <strong class="float-right">${tasks.completed.length}</strong></p>
+                                <p><i class="fas fa-exclamation-circle text-yellow-500"></i> Pending: <strong class="float-right">${tasks.pending.length}</strong></p>
+                                <p><i class="fas fa-times-circle text-red-600"></i> Uncompleted: <strong class="float-right">${tasks.uncompleted.length}</strong></p>
+                                <p><i class="far fa-clock text-blue-500"></i> Upcoming: <strong class="float-right">${tasks.upcoming.length}</strong></p>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+            content += '</div>';
+            mainContent.innerHTML = content;
+            initializeCharts();
+        }
+
+        function renderSuperNurseDetailView(nurse) {
+            let content = `<button data-action="back-to-super" class="mb-6 bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 flex items-center"><i class="fas fa-arrow-left mr-2"></i>Back to Dashboard</button>`;
+            if (!nurse.patients || nurse.patients.length === 0) {
+                content += `<div class="text-center py-16 px-6 bg-white rounded-lg shadow-md"><i class="fas fa-user-nurse fa-4x text-gray-300 mb-4"></i><h3 class="text-xl font-semibold text-gray-700">No Patients Assigned</h3><p class="text-gray-500 mt-2">${nurse.name} currently has no patients.</p></div>`;
+            } else {
+                content += `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">`;
+                nurse.patients.forEach(pid => {
+                    const patient = masterPatientDB.get(pid);
+                    if (patient) content += createPatientCardHtml(pid, patient, { isSuperView: true });
+                });
+                content += `</div>`;
+            }
+            mainContent.innerHTML = content;
+        }
+        
+        function renderPatientDetailView(patientId, options = {}) {
+            const patient = masterPatientDB.get(patientId);
+            if (!patient) return;
+            const { pending, upcoming, completed } = classifyTasks(new Set([patientId]));
+            const allPending = [...pending, ...upcoming].sort((a, b) => a.dateTime - b.dateTime);
+
+            let pendingHtml = allPending.map(t => `<li class="bg-white p-3 rounded-md shadow-sm flex justify-between items-center" data-patient-id="${t.patientId}" data-task-id="${t.id}">
+                <span>${t.text}</span><span class="font-bold text-sm">${t.time}</span>
+                ${options.isReadOnly ? '' : '<button class="task-toggle-btn w-6 h-6 flex items-center justify-center rounded-full border border-gray-300 hover:bg-gray-200 ml-4" data-action="toggle-task"></button>'}
+            </li>`).join('');
+            if (allPending.length === 0) pendingHtml = `<p class="text-gray-500">No pending tasks for this patient.</p>`;
+
+            let completedHtml = completed.sort((a,b) => new Date(b.completedAt) - new Date(a.completedAt)).map(t => `<li class="bg-green-50 p-3 rounded-md">
+                <div class="flex justify-between items-center"><p class="font-semibold text-gray-700">${t.text}</p><span class="text-xs text-gray-500">Completed: ${new Date(t.completedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
+                <p class="text-sm text-gray-600 mt-1 pl-2 border-l-2 border-green-200">${t.remark || 'No remarks.'}</p>
+            </li>`).join('');
+            if (completed.length === 0) completedHtml = `<p class="text-gray-500">No tasks completed yet for this patient.</p>`;
+
+            let doctorsNotesHtml = patient.doctorsNotes.map(n => `<li class="bg-blue-50 p-3 rounded-md">
+                <div class="flex justify-between items-center text-xs text-gray-500 mb-1"><span>${n.doctor}</span><span>${new Date(n.date).toLocaleDateString()}</span></div>
+                <p class="text-sm text-gray-800">${n.note}</p>
+            </li>`).join('');
+            if (patient.doctorsNotes.length === 0) doctorsNotesHtml = `<p class="text-gray-500">No doctor's records found.</p>`;
+
+            const allergiesHtml = patient.allergies.length > 0 ? `<p class="text-sm font-semibold text-red-600 bg-red-100 px-3 py-1 rounded-full">Allergies: ${patient.allergies.join(', ')}</p>` : `<p class="text-sm font-semibold text-green-600 bg-green-100 px-3 py-1 rounded-full">No Known Allergies</p>`;
+            
+            const backAction = loggedInUser.role === 'Nurse' ? 'back-to-nurse-dash' : `view-nurse-ward" data-nurse-id="${Object.values(users).find(u => u.patients.includes(patientId)).id}`;
+
+            mainContent.innerHTML = `
+                <div id="patient-detail-container" class="fade-in" data-patient-id="${patientId}">
+                    <button data-action="${backAction}" class="mb-6 bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 flex items-center"><i class="fas fa-arrow-left mr-2"></i>Back</button>
+                    <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+                        <div class="flex justify-between items-start"><h2 class="text-3xl font-bold text-gray-800">${patient.name}</h2><span class="text-lg font-medium bg-blue-100 text-blue-800 px-4 py-1.5 rounded-full">Room: ${patient.room}</span></div>
+                        <p class="text-gray-500">ID: ${patientId} | Age: ${patient.age}</p><hr class="my-4">
+                        <div class="flex justify-between items-center"><p class="text-gray-600"><span class="font-bold">Diagnosis:</span> ${patient.diagnosis}</p>${allergiesHtml}</div>
+                    </div>
+                    <div class="space-y-8">
+                        <div><h3 class="text-xl font-semibold mb-3 flex items-center"><i class="fas fa-notes-medical text-blue-600 mr-2"></i>Doctor's Records</h3><ul class="space-y-3">${doctorsNotesHtml}</ul></div>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <div>
+                                <div class="flex justify-between items-center mb-3">
+                                   <h3 class="text-xl font-semibold flex items-center"><i class="fas fa-exclamation-triangle text-yellow-500 mr-2"></i>Pending Tasks</h3>
+                                   ${options.isReadOnly ? '' : `<button data-action="add-task" class="text-blue-600 hover:text-blue-800"><i class="fas fa-plus-circle text-2xl"></i></button>`}
+                                </div><ul id="patient-pending-tasks-list" class="space-y-3">${pendingHtml}</ul>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-semibold mb-3 flex items-center"><i class="fas fa-check-double text-green-500 mr-2"></i>Completed Log</h3>
+                                <ul id="patient-completed-tasks-list" class="space-y-3">${completedHtml}</ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        }
+        
+        // --- COMPONENT RENDERING ---
+        function createPatientCardHtml(patientId, patientData, options = {}) {
+            const allergiesHtml = patientData.allergies.length > 0 ? `<p class="text-xs font-semibold text-red-600 bg-red-100 px-2 py-1 rounded-full">Allergies: ${patientData.allergies.join(', ')}</p>` : `<p class="text-xs font-semibold text-green-600 bg-green-100 px-2 py-1 rounded-full">No Known Allergies</p>`;
+            return `
+                <div class="patient-card bg-white rounded-lg shadow-md p-5 flex flex-col fade-in" data-action="view-patient-detail" data-patient-id="${patientId}" ${options.isSuperView ? `data-super-view="true"` : ''}>
+                    <div class="flex-grow">
+                        <div class="flex justify-between items-start"><h3 class="text-lg font-bold">${patientData.name}</h3><span class="text-sm font-medium bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full">Room: ${patientData.room}</span></div>
+                        <p class="text-sm text-gray-500">ID: ${patientId}</p>
+                        <p class="text-sm text-gray-500 mb-3">Diagnosis: ${patientData.diagnosis}</p>
+                        <div class="mb-4">${allergiesHtml}</div>
+                    </div>
+                    ${options.isSuperView ? '' : `<button data-action="remove-patient" class="mt-4 w-full text-xs text-red-500 hover:text-red-700 font-medium py-1">Remove from Ward</button>`}
+                </div>`;
+        }
+
+        function renderPatients() {
+            const patientList = document.getElementById('patient-list');
+            const noPatientsMessage = document.getElementById('no-patients-message');
+            if (!patientList || !noPatientsMessage) return;
+            patientList.innerHTML = '';
+            noPatientsMessage.classList.toggle('hidden', nursePatients.size > 0);
+            patientList.classList.toggle('hidden', nursePatients.size === 0);
+            if (nursePatients.size > 0) nursePatients.forEach(pid => patientList.innerHTML += createPatientCardHtml(pid, masterPatientDB.get(pid)));
+        }
+        
+        function createTaskListItem(task) {
+            const li = document.createElement('li');
+            li.dataset.taskId = task.id; li.dataset.patientId = task.patientId;
+            li.className = 'flex items-center justify-between p-3 rounded-md transition duration-200 bg-white shadow-sm';
+            li.innerHTML = `<div class="flex-1 flex items-center"><button class="task-toggle-btn w-6 h-6 flex items-center justify-center rounded-full border border-gray-300 hover:bg-gray-200 mr-4" data-action="toggle-task"></button><div><p class="font-semibold">${task.text}</p><p class="text-sm text-gray-500">${task.patientName} - Room ${task.room}</p></div></div><div class="text-right"><span class="font-bold text-sm">${task.time}</span></div>`;
+            return li;
+        }
+
+        function renderTaskLists(tasks) {
+            const lists = {
+                pending: document.getElementById('pending-tasks-list'),
+                upcoming: document.getElementById('upcoming-tasks-list'),
+                uncompleted: document.getElementById('uncompleted-tasks-list'),
+                completed: document.getElementById('completed-tasks-list'),
+            };
+            const noItems = {
+                pending: document.getElementById('no-pending-tasks'),
+                upcoming: document.getElementById('no-upcoming-tasks'),
+                uncompleted: document.getElementById('no-uncompleted-tasks'),
+                completed: document.getElementById('no-completed-tasks'),
+            };
+            
+            Object.keys(lists).forEach(key => { if(lists[key]) lists[key].innerHTML = ''; });
+
+            tasks.pending.sort((a,b) => a.dateTime - b.dateTime).forEach(t => lists.pending?.appendChild(createTaskListItem(t)));
+            tasks.upcoming.sort((a,b) => a.dateTime - b.dateTime).forEach(t => lists.upcoming?.appendChild(createTaskListItem(t)));
+            tasks.uncompleted.sort((a,b) => a.dateTime - b.dateTime).forEach(t => lists.uncompleted?.appendChild(createTaskListItem(t)));
+            
+            tasks.completed.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt)).forEach(task => {
+                if(lists.completed) {
+                    const li = document.createElement('li');
+                    li.dataset.taskId = task.id; li.dataset.patientId = task.patientId;
+                    li.className = 'view-completed-task-btn bg-white p-3 rounded-md shadow-sm flex justify-between items-center cursor-pointer hover:bg-gray-50';
+                    li.setAttribute('data-action', 'view-remark');
+                    li.innerHTML = `<div><p class="font-semibold">${task.text}</p><p class="text-sm text-gray-500">${task.patientName} - Room ${task.room}</p></div><div class="text-right"><p class="text-sm font-medium text-green-600">Completed</p><p class="text-xs text-gray-400">${new Date(task.completedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p></div>`;
+                    lists.completed.appendChild(li);
+                }
+            });
+
+            Object.keys(noItems).forEach(key => { if(noItems[key]) noItems[key].classList.toggle('hidden', tasks[key].length > 0) });
+        }
+        
+        function initializeCharts() {
+             Object.values(users).filter(u => u.role === 'Nurse').forEach(nurse => {
+                const tasks = classifyTasks(new Set(nurse.patients || []));
+                const canvas = document.getElementById(`chart-${nurse.id}`);
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                activeCharts[nurse.id] = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Completed', 'Pending', 'Uncompleted', 'Upcoming'],
+                        datasets: [{
+                            data: [tasks.completed.length, tasks.pending.length, tasks.uncompleted.length, tasks.upcoming.length],
+                            backgroundColor: ['#10B981', '#F59E0B', '#EF4444', '#3B82F6'],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } } }
+                });
+            });
+        }
+
+        // --- ACTION HANDLERS ---
+        function handleAction(action, element) {
+            const patientId = element.closest('[data-patient-id]')?.dataset.patientId;
+            const taskId = element.closest('[data-task-id]')?.dataset.taskId;
+            const nurseId = element.closest('[data-nurse-id]')?.dataset.nurseId;
+
+            switch (action) {
+                // Navigation
+                case 'switch-tab': switchTab(element.dataset.tab); break;
+                case 'view-patient-detail': renderView('patient-detail', { patientId, options: { isReadOnly: loggedInUser.role === 'Superintendent' } }); break;
+                case 'view-nurse-ward': renderView('nurse-detail', { nurse: users[nurseId] }); break;
+                case 'back-to-nurse-dash': renderView('nurse'); break;
+                case 'back-to-super': renderView('super'); break;
+
+                // Modals
+                case 'open-add-patient-modal': addPatientModal.classList.remove('hidden'); break;
+                case 'add-task':
+                    addTaskModal.dataset.patientId = patientId;
+                    addTaskModal.querySelector('#add-task-feedback').innerHTML = '';
+                    addTaskModal.querySelector('#task-name-input').value = '';
+                    addTaskModal.querySelector('#task-time-input').value = '';
+                    addTaskModal.classList.remove('hidden');
+                    break;
+                case 'close-modal': element.closest('.modal-overlay').classList.add('hidden'); break;
+
+                // Patient Actions
+                case 'confirm-add-patient': {
+                    const input = addPatientModal.querySelector('#patient-id-input');
+                    const feedback = addPatientModal.querySelector('#modal-feedback');
+                    const pid = input.value.trim().toUpperCase();
+                    feedback.innerHTML = '';
+                    if (!pid) { feedback.innerHTML = `<div class="p-3 my-2 rounded-md bg-red-100 text-red-700">Patient ID cannot be empty.</div>`; return; }
+                    if (!masterPatientDB.has(pid)) { feedback.innerHTML = `<div class="p-3 my-2 rounded-md bg-red-100 text-red-700">Patient ID not found.</div>`; return; }
+                    if (nursePatients.has(pid)) { feedback.innerHTML = `<div class="p-3 my-2 rounded-md bg-yellow-100 text-yellow-700">Patient is already in your ward.</div>`; return; }
+                    nursePatients.add(pid); loggedInUser.patients.push(pid);
+                    updateAllNurseViews();
+                    showToast(`${masterPatientDB.get(pid).name} added.`, 'success');
+                    addPatientModal.classList.add('hidden');
+                    break;
+                }
+                case 'remove-patient': {
+                    if (confirm(`Remove ${masterPatientDB.get(patientId).name} from your ward?`)) {
+                        nursePatients.delete(patientId);
+                        loggedInUser.patients = loggedInUser.patients.filter(p => p !== patientId);
+                        updateAllNurseViews();
+                        showToast(`${masterPatientDB.get(patientId).name} removed.`, 'info');
+                    }
+                    break;
+                }
+                
+                // Task Actions
+                case 'toggle-task': {
+                    const task = masterPatientDB.get(patientId)?.tasks.find(t => t.id == taskId);
+                    if (!task || task.completed) return;
+                    remarksModal.dataset.patientId = patientId; remarksModal.dataset.taskId = taskId;
+                    remarksModal.querySelector('#remarks-task-info').textContent = `Task: ${task.text} for ${masterPatientDB.get(patientId).name}`;
+                    remarksModal.querySelector('#remarks-textarea').value = task.remark || '';
+                    remarksModal.classList.remove('hidden');
+                    break;
+                }
+                case 'save-remarks':
+                case 'skip-remarks': {
+                    const { patientId: pid, taskId: tid } = remarksModal.dataset;
+                    const remark = (action === 'save-remarks') ? remarksModal.querySelector('#remarks-textarea').value.trim() : '';
+                    const patient = masterPatientDB.get(pid);
+                    const task = patient?.tasks.find(t => t.id == tid);
+                    if (task) {
+                        task.completed = true;
+                        task.completedAt = new Date().toISOString();
+                        task.remark = remark;
+                        if (currentView === 'nurse') updateAllNurseViews();
+                        else if (currentView === 'patient-detail') renderView('patient-detail', { patientId: pid, options: { isReadOnly: loggedInUser.role === 'Superintendent' } });
+                        showToast(`Task for ${patient.name} completed!`, 'success');
+                    }
+                    remarksModal.classList.add('hidden');
+                    break;
+                }
+                case 'view-remark': {
+                    const task = masterPatientDB.get(patientId).tasks.find(t => t.id == taskId);
+                    viewRemarkModal.querySelector('#view-remark-content').innerHTML = `<p class="font-semibold text-gray-700">${task.text}</p><p class="text-sm text-gray-500 mb-3">For: ${masterPatientDB.get(patientId).name}</p><p class="bg-gray-100 p-3 rounded-md text-gray-800 whitespace-pre-wrap">${task.remark || 'No remarks were entered.'}</p>`;
+                    viewRemarkModal.classList.remove('hidden');
+                    break;
+                }
+                case 'confirm-add-task': {
+                    const { patientId: pid } = addTaskModal.dataset;
+                    const nameInput = addTaskModal.querySelector('#task-name-input');
+                    const timeInput = addTaskModal.querySelector('#task-time-input');
+                    const feedback = addTaskModal.querySelector('#add-task-feedback');
+                    if (!nameInput.value.trim() || !timeInput.value) {
+                        feedback.innerHTML = `<div class="p-3 my-2 rounded-md bg-red-100 text-red-700">Task name and time are required.</div>`;
+                        return;
+                    }
+                    masterPatientDB.get(pid).tasks.push({ id: Date.now(), text: nameInput.value.trim(), time: timeInput.value, completed: false, remark: '' });
+                    showToast('Custom task added!', 'success');
+                    addTaskModal.classList.add('hidden');
+                    renderView('patient-detail', { patientId: pid, options: { isReadOnly: false } });
+                    break;
+                }
+            }
+        }
+
+        // --- GLOBAL EVENT LISTENERS ---
+        loginForm.addEventListener('submit', handleLogin);
+        logoutBtn.addEventListener('click', handleLogout);
+        userMenuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            userMenu.classList.toggle('hidden');
+        });
+        document.addEventListener('click', (e) => {
+            if (!userMenuBtn.contains(e.target) && !userMenu.contains(e.target)) {
+                userMenu.classList.add('hidden');
+            }
+            const actionTarget = e.target.closest('[data-action]');
+            if (actionTarget) {
+                e.stopPropagation(); 
+            }
+        });
+        addPatientBtn.addEventListener('click', () => handleAction('open-add-patient-modal', addPatientBtn));
+
+    </script>
+</body>
+</html>
